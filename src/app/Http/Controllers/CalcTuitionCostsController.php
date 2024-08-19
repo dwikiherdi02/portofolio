@@ -100,9 +100,14 @@ class CalcTuitionCostsController extends Controller
         $this->studentsSheet($spreadsheet, $siswa->get(), $criteriaRows);
 
         $writer = new Xlsx($spreadsheet);
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
-        $writer->save('php://output');
+
+        // header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        // header('Content-Disposition: attachment; filename="' . $filename . '"');
+        // $writer->save('php://output');
+
+        return response()->streamDownload(function () use ($writer) {
+            $writer->save('php://output');
+        }, $filename);
     }
 
     public function storeCheck(CalcTuitionCostsRequest $request): JsonResponse

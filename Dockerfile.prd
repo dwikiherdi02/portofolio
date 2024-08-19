@@ -98,7 +98,7 @@ RUN pecl install redis && docker-php-ext-enable redis
 
 # RUN pecl install protobuf && docker-php-ext-enable protobuf
 
-COPY ./.deploy/php/php.ini-production /usr/local/etc/php/php.ini
+COPY ./.deploy/php/php.ini /usr/local/etc/php/php.ini
 COPY ./.deploy/supervisor/supervisord.conf.prd /etc/supervisor/conf.d/supervisord.conf
 
 ARG USER=www-data

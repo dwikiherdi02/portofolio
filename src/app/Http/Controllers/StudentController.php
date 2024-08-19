@@ -7,6 +7,7 @@ use App\Libraries\PhpSpreadsheet\ReadFilter;
 use App\Models\Siswa;
 use App\Models\TahunAjaran;
 use Barryvdh\DomPDF\Facade\Pdf;
+use File;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -34,44 +35,47 @@ class StudentController extends Controller
     {
         $model = TahunAjaran::query();
         return $dataTables->eloquent($model)
-                ->filter(function ($query) use ($request) {
-                    if (!empty($request->get('search'))) {
-                        $search = strtolower($request->get('search'));
-                        $query->where(function($query) use ($search) {
-                            $query->where(DB::raw('lower(tahun)'), 'like', '%'. $search .'%');
-                        });
-                    }
-                })
-                ->order(function ($query) use ($request) {
-                    $columns = array_column($request->get('columns'), 'data');
-                    $orders = $request->get('order');
-                    foreach ($orders as $order) {
-                        $column = $columns[$order['column']];
-                        $sort = $order['dir'];
-                        $query->orderBy($column, $sort);
-                    }
-                })
-                ->addColumn('tahun', '{{ $tahun }}')
-                ->addColumn('status', function(TahunAjaran $tahunAjaran) {
-                    if ($tahunAjaran->siswa->count() > 0) {
-                        return 'Data sudah di entri';
-                    } else {
-                        return 'Data belum di entri';
-                    }
-                })
-                ->addColumn('total', function(TahunAjaran $tahunAjaran) {
-                    return $tahunAjaran->siswa->count();
-                })
-                ->addColumn('aksi', function(TahunAjaran $tahunAjaran) {
-                    return view('student.datatables.action', compact('tahunAjaran'))->render();
-                })
-                ->rawColumns(['aksi'])
-                ->toJson();
+            ->filter(function ($query) use ($request) {
+                if (!empty($request->get('search'))) {
+                    $search = strtolower($request->get('search'));
+                    $query->where(function ($query) use ($search) {
+                        $query->where(DB::raw('lower(tahun)'), 'like', '%' . $search . '%');
+                    });
+                }
+            })
+            ->order(function ($query) use ($request) {
+                $columns = array_column($request->get('columns'), 'data');
+                $orders = $request->get('order');
+                foreach ($orders as $order) {
+                    $column = $columns[$order['column']];
+                    $sort = $order['dir'];
+                    $query->orderBy($column, $sort);
+                }
+            })
+            ->addColumn('tahun', '{{ $tahun }}')
+            ->addColumn('status', function (TahunAjaran $tahunAjaran) {
+                if ($tahunAjaran->siswa->count() > 0) {
+                    return 'Data sudah di entri';
+                } else {
+                    return 'Data belum di entri';
+                }
+            })
+            ->addColumn('total', function (TahunAjaran $tahunAjaran) {
+                return $tahunAjaran->siswa->count();
+            })
+            ->addColumn('aksi', function (TahunAjaran $tahunAjaran) {
+                return view('student.datatables.action', compact('tahunAjaran'))->render();
+            })
+            ->rawColumns(['aksi'])
+            ->toJson();
     }
 
     public function downloadStudentTemplate()
     {
+        $now = strtotime(now());
         $filename = 'template-siswa.xlsx';
+        $dir = storage_path("app/tmp/$now");
+
         $styleArray = [
             'font' => [
                 'bold' => true,
@@ -107,14 +111,24 @@ class StudentController extends Controller
 
 
         $lastColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($activeStudentSheet->getHighestDataColumn());
-        for ($i = 1; $i <=  $lastColumnIndex; $i++) {
+        for ($i = 1; $i <= $lastColumnIndex; $i++) {
             $activeStudentSheet->getColumnDimensionByColumn($i)->setAutoSize(false)->setWidth(35);
         }
 
         $writer = new Xlsx($spreadsheet);
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="'.$filename.'"');
-        $writer->save('php://output');
+
+        // header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        // header('Content-Disposition: attachment; filename="' . $filename . '"');
+        // $writer->save('php://output');
+
+        // File::makeDirectory($dir, 755, true);
+        // $writer->save("$dir/$filename");
+        // return response()->download("$dir/$filename")->deleteFileAfterSend(true);
+
+        return response()->streamDownload(function () use ($writer) {
+            $writer->save('php://output');
+        }, $filename);
+
     }
 
     /**
@@ -129,46 +143,47 @@ class StudentController extends Controller
     {
         $model = Siswa::where('id_tahun_ajaran', $tahunAjaran->id);
         return $dataTables->eloquent($model)
-                ->filter(function ($query) use ($request) {
-                    if (!empty($request->get('search'))) {
-                        $search = strtolower($request->get('search'));
-                        $query->where(function($query) use ($search) {
-                            $query->where(DB::raw('lower(nama)'), 'like', '%'. $search .'%')
-                            ->orWhere(DB::raw('lower(nis)'), 'like', '%'. $search .'%');
-                        });
-                    }
-                })
-                ->order(function ($query) use ($request) {
-                    $columns = array_column($request->get('columns'), 'data');
-                    $orders = $request->get('order');
-                    foreach ($orders as $order) {
-                        $column = $columns[$order['column']];
-                        $sort = $order['dir'];
-                        $query->orderBy($column, $sort);
-                    }
-                })
-                ->addColumn('nisn', '{{ $nis }}')
-                ->addColumn('nama', '{{ $nama }}')
-                // ->addColumn('status', function(Siswa $siswa) {
-                //     return view('student.show.datatables.status', compact('siswa'))->render();
-                // })
-                // ->addColumn('aksi', function(Siswa $siswa) {
-                //     return view('student.show.datatables.action', compact('siswa'))->render();
-                // })
-                // ->rawColumns(['aksi'])
-                ->toJson();
+            ->filter(function ($query) use ($request) {
+                if (!empty($request->get('search'))) {
+                    $search = strtolower($request->get('search'));
+                    $query->where(function ($query) use ($search) {
+                        $query->where(DB::raw('lower(nama)'), 'like', '%' . $search . '%')
+                            ->orWhere(DB::raw('lower(nis)'), 'like', '%' . $search . '%');
+                    });
+                }
+            })
+            ->order(function ($query) use ($request) {
+                $columns = array_column($request->get('columns'), 'data');
+                $orders = $request->get('order');
+                foreach ($orders as $order) {
+                    $column = $columns[$order['column']];
+                    $sort = $order['dir'];
+                    $query->orderBy($column, $sort);
+                }
+            })
+            ->addColumn('nisn', '{{ $nis }}')
+            ->addColumn('nama', '{{ $nama }}')
+            // ->addColumn('status', function(Siswa $siswa) {
+            //     return view('student.show.datatables.status', compact('siswa'))->render();
+            // })
+            // ->addColumn('aksi', function(Siswa $siswa) {
+            //     return view('student.show.datatables.action', compact('siswa'))->render();
+            // })
+            // ->rawColumns(['aksi'])
+            ->toJson();
     }
 
-    public function exportPdf(TahunAjaran $tahunAjaran): \Illuminate\Http\Response {
+    public function exportPdf(TahunAjaran $tahunAjaran): \Illuminate\Http\Response
+    {
         $siswa = [];
         Siswa::where('id_tahun_ajaran', $tahunAjaran->id)
-                ->orderBy('nama', 'asc')
-                ->chunk(200, function(Collection $queries) use (&$siswa) {
-                    foreach ($queries as $query) {
-                        $siswa[] = $query;
-                    }
-                });
-        $pdf = Pdf::loadView('student.export', compact('tahunAjaran','siswa'));
+            ->orderBy('nama', 'asc')
+            ->chunk(200, function (Collection $queries) use (&$siswa) {
+                foreach ($queries as $query) {
+                    $siswa[] = $query;
+                }
+            });
+        $pdf = Pdf::loadView('student.export', compact('tahunAjaran', 'siswa'));
         $filename = "Siswa-Tahun-{$tahunAjaran->tahun}.pdf";
         return $pdf->download($filename);
     }
@@ -193,7 +208,7 @@ class StudentController extends Controller
     public function processFetchingExcelData(TahunAjaran $tahunAjaran, StudentRequest $request): JsonResponse
     {
         if ($request->ajax()) {
-            if($errMsg = $request->validateFetchingExcelData()) {
+            if ($errMsg = $request->validateFetchingExcelData()) {
                 return response()->json(
                     [
                         'code' => 422,
@@ -224,9 +239,9 @@ class StudentController extends Controller
             $spreadsheet = $reader->load($file->getRealPath());
             $studentSheet = $spreadsheet->setActiveSheetIndex(0);
             $studentData = [];
-            for ($i=2; $i <= $studentSheet->getHighestDataRow(); $i++) {
+            for ($i = 2; $i <= $studentSheet->getHighestDataRow(); $i++) {
                 $nisn = $studentSheet->getCell("A{$i}")->getValue();
-                $studentName =  $studentSheet->getCell("B{$i}")->getValue();
+                $studentName = $studentSheet->getCell("B{$i}")->getValue();
                 $studentData[] = [
                     'nis' => $nisn,
                     'nama' => $studentName,

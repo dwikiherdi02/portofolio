@@ -1,0 +1,61 @@
+# FROM nginx:latest AS base
+FROM php:8.2.19-fpm AS base
+
+ENV COMPOSER_ALLOW_SUPERUSER=1
+
+# Get composer
+COPY --from=composer:2.7.6 /usr/bin/composer /usr/bin/composer
+
+# Get NodeJS
+COPY --from=node:20.14-slim /usr/local/bin /usr/local/bin
+
+# Get npm
+COPY --from=node:20.14-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+
+RUN apt-get update && apt-get --no-install-recommends -y install \
+  zip \
+  unzip \
+  nano \
+  nginx \
+  g++ \
+  autoconf \
+  zlib1g-dev \
+  libfreetype-dev \
+  libjpeg62-turbo-dev \
+  libpng-dev \
+  libzip-dev \
+  supervisor
+
+RUN docker-php-ext-install pdo_mysql
+
+RUN pecl install redis && docker-php-ext-enable redis
+
+RUN pecl install xdebug && docker-php-ext-enable xdebug
+
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg && docker-php-ext-install -j$(nproc) gd
+
+RUN docker-php-ext-install zip
+
+# RUN pecl install grpc && docker-php-ext-enable grpc
+
+# RUN pecl install protobuf && docker-php-ext-enable protobuf
+
+COPY ./.deploy/supervisor/supervisord.conf.dev /etc/supervisor/conf.d/supervisord.conf
+
+ARG WORKDIR=/var/www/html
+
+WORKDIR ${WORKDIR}
+
+ARG USER=www-data
+
+RUN \
+  # Use "adduser -D ${USER}" for alpine based distros
+  useradd -D ${USER}; \
+  # Give write access to /data/caddy and /config/caddy
+  chown -R ${USER}:${USER} ${WORKDIR}
+
+EXPOSE 80
+
+# Command to run service nginx & php-fpm when the container start
+# CMD ["/bin/bash", "-c", "service nginx start && php-fpm"]
+CMD ["/usr/bin/supervisord", "-n", "-c",  "/etc/supervisor/conf.d/supervisord.conf"]

@@ -1,0 +1,116 @@
+FROM php:8.2.19-cli AS app-builder
+
+ENV COMPOSER_ALLOW_SUPERUSER=1
+
+ARG SOURCEDIR
+
+RUN apt-get update && apt-get install -qq -y \
+    zip \
+    unzip \
+    libzip-dev
+
+# Get NodeJS
+COPY --from=node:20.14-slim /usr/local/bin /usr/local/bin
+# Get npm
+COPY --from=node:20.14-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+
+COPY --from=composer:2.7.6 /usr/bin/composer /usr/bin/composer
+
+WORKDIR /app
+
+COPY ${SOURCEDIR} .
+
+RUN chown -R www-data:www-data public storage bootstrap/cache
+
+RUN docker-php-ext-install zip
+
+RUN composer install --ignore-platform-reqs --no-dev -a
+
+# RUN npm install
+
+COPY ./.deploy/env/.env .
+
+RUN sed -i'' -e 's/^APP_ENV=.*/APP_ENV=production/' -e 's/^APP_DEBUG=.*/APP_DEBUG=false/' .env
+
+# ---------------------------------------------------
+FROM dunglas/frankenphp:latest-builder-php8.2.19 AS fankenphp-builder
+
+# Copy xcaddy in the builder image
+COPY --from=caddy:builder /usr/bin/xcaddy /usr/bin/xcaddy
+
+# CGO must be enabled to build FrankenPHP
+ENV CGO_ENABLED=1 XCADDY_SETCAP=1 XCADDY_GO_BUILD_FLAGS="-ldflags '-w -s'"
+RUN xcaddy build \
+    --output /usr/local/bin/frankenphp \
+    --with github.com/dunglas/frankenphp=./ \
+    --with github.com/dunglas/frankenphp/caddy=./caddy/ \
+    # Mercure and Vulcain are included in the official build, but feel free to remove them
+    --with github.com/dunglas/caddy-cbrotli \
+    --with github.com/dunglas/mercure/caddy \
+    --with github.com/dunglas/vulcain/caddy
+
+# Add extra Caddy modules here
+
+# ---------------------------------------------------
+FROM dunglas/frankenphp:latest-php8.2.19 AS base
+
+ENV XDG_CONFIG_HOME=/app/config
+
+ENV XDG_DATA_HOME=/app/data
+
+WORKDIR /app
+
+# RUN chown -R www-data:www-data /app
+
+COPY --from=app-builder /app .
+
+# Replace the official binary by the one contained your custom modules
+COPY --from=fankenphp-builder /usr/local/bin/frankenphp /usr/local/bin/frankenphp
+
+RUN apt-get update && apt-get --no-install-recommends -y install \
+    zip \
+    unzip \
+    supervisor \
+    g++ \
+    autoconf \
+    zlib1g-dev \
+    libfreetype-dev \
+    libjpeg62-turbo-dev \
+    libpng-dev \
+    libzip-dev \
+    supervisor
+
+RUN docker-php-ext-install pcntl
+
+RUN docker-php-ext-install pdo_mysql
+
+RUN docker-php-ext-install bcmath
+
+RUN docker-php-ext-install zip
+
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg && docker-php-ext-install -j$(nproc) gd
+
+RUN pecl install redis && docker-php-ext-enable redis
+
+#  RUN pecl install xdebug && docker-php-ext-enable xdebug
+
+# RUN pecl install grpc && docker-php-ext-enable grpc
+
+# RUN pecl install protobuf && docker-php-ext-enable protobuf
+
+COPY ./.deploy/php/php.ini-production /usr/local/etc/php/php.ini
+COPY ./.deploy/supervisor/supervisord.conf.prd /etc/supervisor/conf.d/supervisord.conf
+
+ARG USER=www-data
+
+RUN \
+    # Use "adduser -D ${USER}" for alpine based distros
+    useradd -D ${USER}; \
+    # Add additional capability to bind to port 80 and 443
+    # setcap CAP_NET_BIND_SERVICE=+eip /usr/local/bin/frankenphp; \
+    # Give write access to /data/caddy and /config/caddy
+    chown -R ${USER}:${USER} /data/caddy && chown -R ${USER}:${USER} /config/caddy
+
+USER ${USER}
+
+CMD ["/usr/bin/supervisord", "-n", "-c",  "/etc/supervisor/conf.d/supervisord.conf"]

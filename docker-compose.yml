@@ -1,0 +1,46 @@
+version: "3.8"
+
+name: simplesaw 
+
+services:
+  dev:
+    container_name: simplesaw-dev
+    build:
+      context: .
+      dockerfile: ${DEV_DOCKERFILE}
+    restart: always
+    ports:
+      - "${DEV_APP_PORT}:80"
+    volumes:
+      - ${DEV_APP_VOLUME}
+      - ${DEV_INI_VOLUME}
+      - ${DEV_NGINX_VOLUME}
+    networks:
+      - portofolio
+      - database_mysql
+      - tools_cache
+      - tools_mailer
+  prd:
+    container_name: simplesaw-prd
+    build:
+      context: .
+      dockerfile: ${PRD_DOCKERFILE}
+      args:
+        - SOURCEDIR=${PRD_SOURCEDIR}
+    restart: always
+    ports:
+      - "${PRD_APP_PORT}:8000"
+    networks:
+      - portofolio
+      - database_mysql
+      - tools_cache
+
+networks:
+  portofolio:
+    driver: "bridge"
+  database_mysql:
+    external: true
+  tools_cache:
+    external: true
+  tools_mailer:
+    external: true

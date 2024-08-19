@@ -1,0 +1,7 @@
+app
+.deploy/env/.env
+.dockerfile/*
+.env
+
+
+!app/.gitkeep

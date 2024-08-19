@@ -6,6 +6,7 @@
 /.deploy/env/.env.backup
 /.deploy/env/.env.production
 /.deploy/php/php.ini
+/.deploy/php/php.ini.example
 
 /src/.phpunit.cache
 /src/node_modules

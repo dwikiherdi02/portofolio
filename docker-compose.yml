@@ -12,9 +12,9 @@ services:
     ports:
       - "${DEV_APP_PORT:80}:80"
     volumes:
-      - ${DEV_APP_VOLUME:./app}
-      - ${DEV_INI_VOLUME:./.deploy/php}
-      - ${DEV_NGINX_VOLUME:./.deploy/nginx:/etc/nginx}
+      - ${DEV_APP_VOLUME:-./app}
+      - ${DEV_INI_VOLUME:-./.deploy/php}
+      - ${DEV_NGINX_VOLUME:-./.deploy/nginx:/etc/nginx}
     networks:
       - portofolio
       - database_mysql

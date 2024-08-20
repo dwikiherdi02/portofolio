@@ -11,8 +11,9 @@ pidfile=/var/run/supervisord.pid
 
 [program:octane]
 user=www-data
+command=php /app/artisan octane:start --server=frankenphp --host=0.0.0.0 --workers=1
 # command=php /app/artisan octane:start --host=0.0.0.0 --port=443 --admin-port=2019 --https
-command=php /app/artisan octane:frankenphp
+# command=php /app/artisan octane:frankenphp
 autostart=true
 autorestart=true
 priority=2

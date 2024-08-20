@@ -10,11 +10,11 @@ services:
       dockerfile: ${DEV_DOCKERFILE}
     restart: always
     ports:
-      - "${DEV_APP_PORT}:80"
+      - "${DEV_APP_PORT:80}:80"
     volumes:
-      - ${DEV_APP_VOLUME}
-      - ${DEV_INI_VOLUME}
-      - ${DEV_NGINX_VOLUME}
+      - ${DEV_APP_VOLUME:./app}
+      - ${DEV_INI_VOLUME:./.deploy/php}
+      - ${DEV_NGINX_VOLUME:./.deploy/nginx:/etc/nginx}
     networks:
       - portofolio
       - database_mysql
@@ -25,9 +25,20 @@ services:
     build:
       context: .
       dockerfile: ${PRD_DOCKERFILE}
+      target: base
       args:
         - SOURCEDIR=${PRD_SOURCEDIR}
+        - WORKDIR=${PRD_ENV_WORKDIR}
+        - XDGDIR=${PRD_ENV_XDGDIR}
+        - XDG_CONFIG=${PRD_ENV_XDG_CONFIG}
+        - XDG_DATA=${PRD_ENV_XDG_DATA}
     restart: always
+    environment:
+      - SERVER_NAME=${PRD_ENV_SERVER_NAME}
+      - REQUEST_MAX_EXECUTION_TIME=${PRD_ENV_REQUEST_MAX_EXECUTION_TIME}
+      - MAX_REQUESTS=${PRD_ENV_MAX_REQUESTS}
+      - XDG_CONFIG_HOME=${PRD_ENV_XDG_CONFIG}
+      - XDG_DATA_HOME=${PRD_ENV_XDG_DATA}
     ports:
       - "${PRD_APP_PORT}:8000"
     networks:

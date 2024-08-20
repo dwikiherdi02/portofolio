@@ -2,7 +2,15 @@ FROM php:8.2.19-cli AS app-builder
 
 ENV COMPOSER_ALLOW_SUPERUSER=1
 
+ARG WORKDIR
+
 ARG SOURCEDIR
+
+ARG XDGDIR
+
+ARG XDG_CONFIG
+
+ARG XDG_DATA
 
 RUN apt-get update && apt-get install -qq -y \
     zip \
@@ -16,11 +24,17 @@ COPY --from=node:20.14-slim /usr/local/lib/node_modules /usr/local/lib/node_modu
 
 COPY --from=composer:2.7.6 /usr/bin/composer /usr/bin/composer
 
-WORKDIR /app
+WORKDIR ${WORKDIR}
 
 COPY ${SOURCEDIR} .
 
-RUN chown -R www-data:www-data public storage bootstrap/cache
+RUN mkdir ${XDGDIR}
+
+RUN mkdir ${XDG_CONFIG}
+
+RUN mkdir ${XDG_DATA}
+
+RUN chown -R www-data:www-data ${XDG_CONFIG} ${XDG_DATA} public storage bootstrap/cache
 
 RUN docker-php-ext-install zip
 
@@ -54,13 +68,9 @@ RUN xcaddy build \
 # ---------------------------------------------------
 FROM dunglas/frankenphp:latest-php8.2.19 AS base
 
-ENV XDG_CONFIG_HOME=/app/config
+ARG WORKDIR
 
-ENV XDG_DATA_HOME=/app/data
-
-WORKDIR /app
-
-# RUN chown -R www-data:www-data /app
+WORKDIR ${WORKDIR}
 
 COPY --from=app-builder /app .
 
@@ -90,7 +100,7 @@ RUN docker-php-ext-install zip
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg && docker-php-ext-install -j$(nproc) gd
 
-RUN pecl install redis && docker-php-ext-enable redis
+# RUN pecl install redis && docker-php-ext-enable redis
 
 #  RUN pecl install xdebug && docker-php-ext-enable xdebug
 
@@ -98,7 +108,9 @@ RUN pecl install redis && docker-php-ext-enable redis
 
 # RUN pecl install protobuf && docker-php-ext-enable protobuf
 
-COPY ./.deploy/php/php.ini /usr/local/etc/php/php.ini
+# COPY ./.deploy/php/php.ini /usr/local/etc/php/php.ini
+# COPY ./.deploy/php/php.ini $PHP_INI_DIR/php.ini
+COPY ./.deploy/php/php.ini-production $PHP_INI_DIR/php.ini
 COPY ./.deploy/supervisor/supervisord.conf.prd /etc/supervisor/conf.d/supervisord.conf
 
 ARG USER=www-data
